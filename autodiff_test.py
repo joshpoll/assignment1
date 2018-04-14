@@ -2,11 +2,9 @@ import autodiff as ad
 import numpy as np
 
 def test_identity():
-    # computation graph
     x2 = ad.Variable(name = "x2")
     y = x2
 
-    # gradient graph
     grad_x2, = ad.gradients(y, [x2])
 
     executor = ad.Executor([y, grad_x2])
