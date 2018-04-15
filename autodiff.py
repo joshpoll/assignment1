@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List
+from typing import List, Dict
 
 class Node(object):
     inputs: List["Node"]
@@ -273,6 +273,8 @@ oneslike_op = OnesLikeOp()
 zeroslike_op = ZerosLikeOp()
 
 class Executor:
+    eval_node_list: List[Node]
+
     """Executor computes values for a given subset of nodes in a computation graph.""" 
     def __init__(self, eval_node_list):
         """
@@ -282,11 +284,11 @@ class Executor:
         """
         self.eval_node_list = eval_node_list
 
-    def run(self, feed_dict):
+    def run(self, feed_dict: Dict[Node, np.ndarray]):
         """Computes values of nodes in eval_node_list given computation graph.
         Parameters
         ----------
-        feed_dict: list of variable nodes whose values are supplied by user.
+        feed_dict: map of variable nodes to their values
 
         Returns
         -------
