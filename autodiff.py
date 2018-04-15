@@ -354,23 +354,27 @@ def gradients(output_node: Node, node_list: List[Node]) -> List[Node]:
     reverse_topo_order = reversed(find_topo_sort([output_node]))
 
     # step 1. Populate node_to_output_grads_list.
-    # traverse backwards and get all the nodes that contribute to a particular node.
+
+    # traverse nodes in reverse topological order
     for node in reverse_topo_order:
+        # look at all output gradients of the node
         for output_grad in node_to_output_grads_list[node]:
             if isinstance(node.op, PlaceholderOp):
                 continue
 
+            # calculate the gradients to propagate
             propagated_grads: List[Node] = node.op.gradient(node, output_grad)
 
+            # propagate the gradients
             for (idx, in_node) in enumerate(node.inputs):
                 if in_node not in node_to_output_grads_list:
                     node_to_output_grads_list[in_node] = []
                 node_to_output_grads_list[in_node].append(propagated_grads[idx])
 
     # step 2. Populate node_to_output_grad.
-    # Sum contributions from each node's list of nodes in the other dict
 
     def accumulate(nodes: List[Node]) -> Node:
+        '''Add a list of gradient nodes'''
         assert len(nodes) >= 1
 
         output = 0
@@ -378,6 +382,7 @@ def gradients(output_node: Node, node_list: List[Node]) -> List[Node]:
             output += node
         return output # type: ignore
 
+    # accumulate the output gradient lists
     node_to_output_grad = {node: accumulate(node_to_output_grads_list[node]) for node in node_to_output_grads_list.keys()}
 
     # Collect results for gradients requested.
