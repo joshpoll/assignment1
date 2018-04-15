@@ -10,11 +10,11 @@ class Node(object):
     """Node in a computation graph."""
     def __init__(self):
         """Constructor, new node is indirectly created by Op object __call__ method.
-            
+
             Instance variables
             ------------------
             self.inputs: the list of input nodes.
-            self.op: the associated op object, 
+            self.op: the associated op object,
                 e.g. add_op object if this node is created by adding two other nodes.
             self.const_attr: the add or multiply constant,
                 e.g. self.const_attr=5 if this node is created by x+5.
@@ -49,13 +49,13 @@ class Node(object):
     __rmul__ = __mul__
 
     def __str__(self):
-        """Allow print to display node name.""" 
+        """Allow print to display node name."""
         return self.name
 
     __repr__ = __str__
 
 def Variable(name):
-    """User defined variables in an expression.  
+    """User defined variables in an expression.
         e.g. x = Variable(name = "x")
     """
     placeholder_node = placeholder_op()
@@ -66,7 +66,7 @@ class Op(object):
     """Op represents operations performed on nodes."""
     def __call__(self):
         """Create a new node and associate the op object with the node.
-        
+
         Returns
         -------
         The new node object.
@@ -209,7 +209,7 @@ class MatMulOp(Op):
 
     def gradient(self, node, output_grad):
         """Given gradient of multiply node, return gradient contributions to each input.
-            
+
         Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
         """
         """TODO: Your code here"""
@@ -240,7 +240,7 @@ class ZerosLikeOp(Op):
 
     def compute(self, node, input_vals):
         """Returns zeros_like of the same shape as input."""
-        assert(isinstance(input_vals[0], np.ndarray))
+        assert isinstance(input_vals[0], np.ndarray)
         return np.zeros(input_vals[0].shape)
 
     def gradient(self, node, output_grad):
@@ -257,7 +257,7 @@ class OnesLikeOp(Op):
 
     def compute(self, node, input_vals):
         """Returns ones_like of the same shape as input."""
-        assert(isinstance(input_vals[0], np.ndarray))
+        assert isinstance(input_vals[0], np.ndarray)
         return np.ones(input_vals[0].shape)
 
     def gradient(self, node, output_grad):
@@ -276,7 +276,7 @@ zeroslike_op = ZerosLikeOp()
 class Executor:
     eval_node_list: List[Node]
 
-    """Executor computes values for a given subset of nodes in a computation graph.""" 
+    """Executor computes values for a given subset of nodes in a computation graph."""
     def __init__(self, eval_node_list):
         """
         Parameters
@@ -293,28 +293,23 @@ class Executor:
 
         Returns
         -------
-        A list of values for nodes in eval_node_list. 
+        A list of values for nodes in eval_node_list.
         """
         node_to_val_map = dict(feed_dict)
         # Traverse graph in topological sort order and compute values for all nodes.
         topo_order = find_topo_sort(self.eval_node_list)
-        """TODO: Your code here"""
+
         for node in topo_order:
             # Don't compute variables. They should be provided.
             if isinstance(node.op, PlaceholderOp):
-                assert node_to_val_map[node] is not None
                 continue
-            
-            print("computing", node)
-            # compute needs the node and the input values and will return the output value
 
             # grab the input values from the map by querying with node.inputs
             input_vals: List[np.ndarray] = [node_to_val_map[node] for node in node.inputs]
-            print(input_vals)
 
             # add the result to the map
             node_to_val_map[node] = node.op.compute(node, input_vals)
-            print(node_to_val_map)
+
         # Collect node values.
         node_val_results = [node_to_val_map[node] for node in self.eval_node_list]
         return node_val_results
@@ -325,7 +320,7 @@ class Executor:
 # thus grad_x2 must be a node.
 # thus gradients must return nodes
 # I think this means `gradient` returns a list of nodes as well. not values as the comments suggest
-# 
+#
 # compute and run, on the other hand, deal with concrete values
 def gradients(output_node: Node, node_list: List[Node]) -> List[Node]:
     """Take gradient of output node with respect to each node in node_list.
@@ -352,48 +347,45 @@ def gradients(output_node: Node, node_list: List[Node]) -> List[Node]:
     # Traverse graph in reverse topological order given the output_node that we are taking gradient wrt.
     reverse_topo_order = reversed(find_topo_sort([output_node]))
 
-    """TODO: Your code here"""
     # step 1. Populate node_to_output_grads_list.
     # traverse backwards and get all the nodes that contribute to a particular node.
     for node in reverse_topo_order:
-        print(node.name)
-        print(node.inputs)
-        print("propagating output grads for", node)
         for output_grad in node_to_output_grads_list[node]:
-            propagated_grads: List[Node] = node.op.gradient(node, output_grad)
-            print("propagating", propagated_grads)
-            print("before:", node_to_output_grads_list)
-            # TODO: make more pythonic
-            if propagated_grads is not None:
-                for i in range(len(propagated_grads)):
-                    node_to_output_grads_list[node.inputs[i]].append(propagated_grads[i])
-            print("after:", node_to_output_grads_list)
+            if isinstance(node.op, PlaceholderOp):
+                continue
 
-        # inputs: List["Node"]
-        # op: "Op"
-        # const_attr: int
-        # name: str
+            propagated_grads: List[Node] = node.op.gradient(node, output_grad)
+
+            for (idx, in_node) in enumerate(node.inputs):
+                if in_node not in node_to_output_grads_list:
+                    node_to_output_grads_list[in_node] = []
+                node_to_output_grads_list[in_node].append(propagated_grads[idx])
 
     # step 2. Populate node_to_output_grad.
     # Sum contributions from each node's list of nodes in the other dict
-    
-    # hack to get identity passing
-    # TODO: make more pythonic
-    node_to_output_grad = {node: node_to_output_grads_list[node][0] for node in node_to_output_grads_list.keys()}   
-    print(node_to_output_grad)
+
+    def accumulate(nodes: List[Node]) -> Node:
+        assert len(nodes) >= 1
+
+        output = 0
+        for node in nodes:
+            output += node
+        return output # type: ignore
+
+    node_to_output_grad = {node: accumulate(node_to_output_grads_list[node]) for node in node_to_output_grads_list.keys()}
 
     # Collect results for gradients requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
 
 ##############################
-####### Helper Methods ####### 
+####### Helper Methods #######
 ##############################
 
 def find_topo_sort(node_list):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
-    
-    A simple algorithm is to do a post-order DFS traversal on the given nodes, 
+
+    A simple algorithm is to do a post-order DFS traversal on the given nodes,
     going backwards based on input edges. Since a node is added to the ordering
     after all its predecessors are traversed due to post-order DFS, we get a topological
     sort.
