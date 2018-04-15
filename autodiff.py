@@ -3,7 +3,7 @@ from typing import List, Dict
 
 class Node(object):
     inputs: List["Node"]
-    op: List["Op"]
+    op: "Op"
     const_attr: int
     name: str
 
@@ -89,13 +89,14 @@ class Op(object):
         """
         raise NotImplementedError
 
-    def gradient(self, node: Node, output_grad: np.ndarray) -> List[np.ndarray]:
+    # todo: rethink these types. I'm still not sure if output_grad and the return type should be using Node or np.ndarray
+    def gradient(self, node: Node, output_grad: Node) -> List[Node]:
         """Given value of output gradient, compute gradient contributions to each input node.
 
         Parameters
         ----------
         node: node that performs the gradient.
-        output_grad: value of output gradient summed from children nodes' contributions
+        output_grad: value(???)/node(???) of output gradient summed from children nodes' contributions
 
         Returns
         -------
@@ -284,7 +285,7 @@ class Executor:
         """
         self.eval_node_list = eval_node_list
 
-    def run(self, feed_dict: Dict[Node, np.ndarray]):
+    def run(self, feed_dict: Dict[Node, np.ndarray]) -> List[np.ndarray]:
         """Computes values of nodes in eval_node_list given computation graph.
         Parameters
         ----------
@@ -303,7 +304,15 @@ class Executor:
         node_val_results = [node_to_val_map[node] for node in self.eval_node_list]
         return node_val_results
 
-def gradients(output_node, node_list):
+# this seems to return nodes, not values.
+# for example, in test_identity. gradients returns grad_x2, which is fed into Executor along with y.
+# Executor is initialized with nodes, nto values.
+# thus grad_x2 must be a node.
+# thus gradients must return nodes
+# I think this means `gradient` returns a list of nodes as well. not values as the comments suggest
+# 
+# compute and run, on the other hand, deal with concrete values
+def gradients(output_node: Node, node_list: List[Node]) -> List[Node]:
     """Take gradient of output node with respect to each node in node_list.
 
     Parameters
@@ -313,22 +322,43 @@ def gradients(output_node, node_list):
 
     Returns
     -------
-    A list of gradient values, one for each node in node_list respectively.
+    A list of gradient nodes(?), one for each node in node_list respectively.
 
     """
 
     # a map from node to a list of gradient contributions from each output node
-    node_to_output_grads_list = {}
+    node_to_output_grads_list: Dict[Node, List[Node]] = {}
     # Special note on initializing gradient of output_node as oneslike_op(output_node):
     # We are really taking a derivative of the scalar reduce_sum(output_node)
     # instead of the vector output_node. But this is the common case for loss function.
     node_to_output_grads_list[output_node] = [oneslike_op(output_node)]
     # a map from node to the gradient of that node
-    node_to_output_grad = {}
+    node_to_output_grad: Dict[Node, Node] = {}
     # Traverse graph in reverse topological order given the output_node that we are taking gradient wrt.
     reverse_topo_order = reversed(find_topo_sort([output_node]))
 
     """TODO: Your code here"""
+    # step 1. Populate node_to_output_grads_list.
+    # traverse backwards and get all the nodes that contribute to a particular node.
+    for node in reverse_topo_order:
+        print(node.name)
+        print(node.inputs)
+        print("propagating output grads for", node)
+        for output_grad in node_to_output_grads_list[node]:
+            propagated_grads: List[Node] = node.op.gradient(node, output_grad)
+            print(propagated_grads)
+            print(node_to_output_grads_list)
+            for i in range(len(propagated_grads)):
+                node_to_output_grads_list[node.inputs[i]].append(propagated_grads[i])
+            print(node_to_output_grads_list)
+
+        # inputs: List["Node"]
+        # op: "Op"
+        # const_attr: int
+        # name: str
+
+    # step 2. Populate node_to_output_grad.
+    # Sum contributions from each node's list of nodes in the other dict
 
     # Collect results for gradients requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
