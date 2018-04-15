@@ -1,6 +1,12 @@
 import numpy as np
+from typing import List
 
 class Node(object):
+    inputs: List["Node"]
+    op: List["Op"]
+    const_attr: int
+    name: str
+
     """Node in a computation graph."""
     def __init__(self):
         """Constructor, new node is indirectly created by Op object __call__ method.
@@ -30,7 +36,13 @@ class Node(object):
         return new_node
 
     def __mul__(self, other):
-        """TODO: Your code here"""
+        """Multiplying two nodes returns a new node."""
+        # basically the same as __add__
+        if isinstance(other, Node):
+            new_node = mul_op(self, other)
+        else:
+            new_node = mul_byconst_op(self, other)
+        return new_node
 
     # Allow left-hand-side add and multiply.
     __radd__ = __add__
@@ -63,7 +75,7 @@ class Op(object):
         new_node.op = self
         return new_node
 
-    def compute(self, node, input_vals):
+    def compute(self, node: Node, input_vals: List[np.ndarray]) -> np.ndarray:
         """Given values of input nodes, compute the output value.
 
         Parameters
@@ -77,7 +89,7 @@ class Op(object):
         """
         raise NotImplementedError
 
-    def gradient(self, node, output_grad):
+    def gradient(self, node: Node, output_grad: np.ndarray) -> List[np.ndarray]:
         """Given value of output gradient, compute gradient contributions to each input node.
 
         Parameters
